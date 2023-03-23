@@ -1,3 +1,5 @@
+use std::io::{self, BufRead};
+
 const HASH_LEN: usize = 16;
 static HASH_PREFIX: &'static str = "::h";
 
@@ -33,7 +35,7 @@ fn rust_demangle_symbol_element_legacy(mut legacy_symbol_element: &str) -> Strin
     let mut i: usize = 0;
     let mut output: String = String::new();
     let input: &mut &str = &mut legacy_symbol_element;
-    let mut last_char = '\0';
+    let mut last_char: char = '\0';
     let mut c: char;
 
     while input.len() > 0 {
@@ -59,6 +61,8 @@ fn rust_demangle_symbol_element_legacy(mut legacy_symbol_element: &str) -> Strin
                     || unescape(input, &mut output, "$u7d$", '}')
                     || unescape(input, &mut output, "$u7e$", '~'))
                 {
+                    /* if '$' is specified and none of the following sequence is provided
+                     * it means it is a bad symbol */
                     panic!("invalid legacy symbol element {}", legacy_symbol_element);
                 }
             }
@@ -78,11 +82,7 @@ fn rust_demangle_symbol_element_legacy(mut legacy_symbol_element: &str) -> Strin
                 *input = &input[1..];
             }
 
-            'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n'
-            | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A' | 'B'
-            | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
-            | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '0' | '1' | '2' | '3'
-            | '4' | '5' | '6' | '7' | '8' | '9' | ':' => {
+            'a'..='z' | 'A' ..= 'Z' | '0' ..= 'Z' => {
                 output.push(c);
                 *input = &input[1..];
             }
@@ -155,9 +155,22 @@ fn demangle_symbol_legacy(legacy_symbol: &str) -> String {
 
 fn main() {
     /* take all the inputs from command line arguments */
-    let rust_symbols_list = std::env::args().skip(1);
+    let args = std::env::args();
+    let stdin = io::stdin();
 
-    for rust_symbol_value in rust_symbols_list {
-        println!("{}", demangle_symbol_legacy(&rust_symbol_value));
+    /* if no arguments are provided 
+     * take input from stdin */
+    if args.len() < 2 {
+        for line in stdin.lock().lines() {
+            if let Ok(line) = line {
+                println!("{}", demangle_symbol_legacy(&line));
+            }
+        }
+    } else {
+        /* skip first argument and take it as input */
+        let rust_symbols_list = args.skip(1);
+        for rust_symbol_value in rust_symbols_list {
+            println!("{}", demangle_symbol_legacy(&rust_symbol_value));
+        }
     }
 }
